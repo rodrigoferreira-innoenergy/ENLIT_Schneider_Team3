@@ -6,11 +6,10 @@ import base64
 import json
 import os
 
-
 dash.register_page(__name__, path='/import')
 
 layout = html.Div([
-    html.H1("Importing your data"),
+    html.H1("Import your Data", style={'textAlign': 'center', 'fontWeight': 'bold'}),
     html.P("Here you can import your Excel file: Data Base - Schneider Electric x InnoEnergy ENLIT Milan 2024"),
     
     dcc.Upload(
@@ -71,6 +70,8 @@ def parse_and_save_contents(contents, filename, date, save_button_clicks):
     # Process the sheets and store them in a dictionary
     for sheet in sheet_names:
         df = pd.read_excel(xls, sheet_name=sheet)
+
+
         
         # If there are "Month", "Day", and "Hour" columns, combine them into "Date" with year 2023
         if set(['Month', 'Day', 'Hour']).issubset(df.columns):
@@ -79,6 +80,26 @@ def parse_and_save_contents(contents, filename, date, save_button_clicks):
             )
             df = df.drop(columns=['Month', 'Day', 'Hour'])  # Drop the original columns
         
+        # Process "Consumption" sheet to add additional years
+        if sheet == "Consumption":
+            original_df = df.copy()  # Keep a copy of the original DataFrame
+
+            # Create new rows for each year from 2024 to 2030
+            additional_years = [2024, 2025, 2026, 2027, 2028, 2029, 2030]
+            for year in additional_years:
+                # Create a copy of the original DataFrame
+                new_year_df = original_df.copy()
+            
+             # Update the "Date" column to reflect the new year
+                new_year_df['Date'] = new_year_df['Date'].apply(lambda x: x.replace(year=year))
+            
+                # Append the new year DataFrame to the original DataFrame
+                original_df = pd.concat([original_df, new_year_df], ignore_index=True)
+
+                df = original_df  # Update df to include the new rows for additional years
+
+
+
         # Convert Timestamps to strings for JSON serialization
         for col in df.select_dtypes(include=['datetime']).columns:
             df[col] = df[col].astype(str)  # Convert timestamps to strings
@@ -98,6 +119,7 @@ def parse_and_save_contents(contents, filename, date, save_button_clicks):
         
         # Save each DataFrame to CSV in the assets folder
         for sheet in sheet_names:
+            df = pd.DataFrame(data_frames[f'df_{sheet}'])  # Convert list of records back to DataFrame
             df.to_csv(f'assets/df_{sheet}.csv', index=False)  # Save DataFrame as CSV
         
         return output, json.dumps(data_frames)  # Return the stored DataFrames as JSON string
